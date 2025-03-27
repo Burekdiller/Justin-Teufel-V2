@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Justin - The Little Devil</title>
+  <style>
+    body { margin: 0; padding: 0; overflow: hidden; background-color: #222; }
+    canvas { display: block; margin: auto; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Returns a contrast color ("white" or "black") for a given hex background.
+    function getContrastColor(hex) {
+      hex = hex.replace('#', '');
+      const r = parseInt(hex.substring(0, 2), 16);
+      const g = parseInt(hex.substring(2, 4), 16);
+      const b = parseInt(hex.substring(4, 6), 16);
+      const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+      return brightness > 128 ? "black" : "white";
+    }
+
+    // Game settings
+    const immortal = false;
+    const testingMode = false;
+
+    // Array of planets (from easiest to hardest)
+    const planets = [
+      { name: "Mercury", background: "#666666", gravity: 0.4, enemy: { color: "gray", speed: 3, height: 30 } },
+      { name: "Venus", background: "#FFB347", gravity: 0.45, enemy: { color: "orange", speed: 3.2, height: 35 } },
+      { name: "Earth", background: "#4B9CD3", gravity: 0.5, enemy: { color: "brown", speed: 3, height: 45 } },
+      { name: "Mars", background: "#CC3300", gravity: 0.55, enemy: { color: "white", speed: 3.5, height: 40 } },
+      { name: "Jupiter", background: "#D2B48C", gravity: 0.6, enemy: { color: "beige", speed: 4, height: 50 } },
+      { name: "Saturn", background: "#F0E68C", gravity: 0.65, enemy: { color: "goldenrod", speed: 3.8, height: 45 } },
+      { name: "Uranus", background: "#AFEEEE", gravity: 0.7, enemy: { color: "lightblue", speed: 4.2, height: 40 } },
+      { name: "Neptune", background: "#4169E1", gravity: 0.75, enemy: { color: "blue", speed: 4.5, height: 40 } },
+      { name: "Sun", background: "#FF4500", gravity: 0.8, enemy: { color: "black", speed: 5, height: 50 } }
+    ];
+
+    // Endlevel: Black Hole when persistentScore >= 666
+    const blackHole = {
+      name: "Black Hole",
+      background: "#000000",
+      gravity: 1.2,
+      enemy: { color: "#222222", speed: 10, height: 60 }
+    };
+
+    // Global variables
+    let score = 0;
+    let persistentScore = 0;
+    let level = 1;
+    let gameState = "playing"; // "playing", "shop", "gameover"
+    let collisionEffectTimer = 0;
+
+    // Coin (collectible)
+    const coin = {
+      x: Math.random() * (canvas.width - 20) + 10,
+      y: Math.random() * (canvas.height - 100) + 10,
+      radius: 10
+    };
+
+    // Power-up: When picked up, grants invincibility for 300 frames and enemy boost for 282 frames.
+    let powerUp = null;
+    let powerUpTimer = Math.floor(Math.random() * 700) + 800; // 800 to 1500 frames
+    let enemyBoostTime = 0;
+
+    // Array for flying obstacles
+    let flyingObstacles = [];
+    let flyingObstacleTimer = 300;
+
+    // Justin's properties
+    const justin = {
+      x: 100,
+      y: 500,
+      width: 50,
+      height: 70,
+      baseSpeed: 5,
+      speed: 5,
+      dy: 0,
+      gravity: 0.5, // set dynamically
+      jumpStrength: -12,
+      onGround: true,
+      health: 100,
+      maxHealth: 100,
+      invulTimer: 0,
+      dashTime: 0,
+      dashCooldown: 0,
+      immortalityTime: 0, // Invincibility timer
+      damageReduction: 0  // Shield upgrade ("Big Boy") reduces damage by 10
+    };
+
+    // Enemy ("Kacke") properties – add a flag for collision
+    const enemy = {
+      x: canvas.width,
+      y: 550,
+      width: 50,
+      height: 45,
+      speed: 3,
+      color: "brown",
+      hasHit: false
+    };
+
+    // We'll also add a "hasHit" flag for flying obstacles when they spawn.
+    function spawnFlyingObstacle(currentPlanet) {
+      let y;
+      // For Venus, spawn obstacles lower
+      if (currentPlanet.name === "Venus") {
+        y = Math.random() * (canvas.height * 0.2) + (canvas.height * 0.6);
+      } else {
+        y = Math.random() * (canvas.height / 2);
+      }
+      return {
+        x: canvas.width,
+        y: y,
+        width: 40,
+        height: 20,
+        speed: 5 + level * 0.5,
+        hasHit: false
+      };
+    }
+
+    const keys = {};
+
+    document.addEventListener('keydown', function(e) {
+      if (gameState === "gameover") {
+        if (e.key.toLowerCase() === "r") restartGame();
+        return;
+      }
+      if (gameState === "shop") {
+        // Shop options
+        if (e.key === "1") {
+          if (score >= 15) { score -= 15; justin.jumpStrength *= 1.03; console.log("Stronger Jump purchased!"); }
+        } else if (e.key === "2") {
+          if (score >= 20) { score -= 20; justin.baseSpeed += 2; console.log("More Endurance purchased!"); }
+        } else if (e.key === "3") {
+          if (score >= 25) { score -= 25; enemy.speed *= 0.95; console.log("Enemies slowed!"); }
+        } else if (e.key === "4") {
+          if (score >= 25) { score -= 25; justin.health = Math.min(justin.health + 20, justin.maxHealth); console.log("Extra Health purchased!"); }
+        } else if (e.key === "5") {
+          if (score >= 100) {
+            score -= 100;
+            justin.damageReduction = 10;
+            console.log("Big Boy purchased! Shield active: Damage reduced by 10.");
+          }
+        } else if (e.key.toLowerCase() === "c") {
+          // Clear key states upon shop exit.
+          for (let k in keys) { keys[k] = false; }
+          level++;
+          gameState = "playing";
+          // Reset Justin's position.
+          justin.x = 100;
+          justin.y = 500;
+          justin.dy = 0;
+          justin.onGround = true;
+          console.log("Continuing to level " + level);
+        }
+      } else {
+        keys[e.key] = true;
+        // Make W key work as jump, along with Up Arrow and Space.
+        if ((e.key === " " || e.key === "ArrowUp" || e.key.toLowerCase() === "w") && justin.onGround) {
+          justin.dy = justin.jumpStrength;
+          justin.onGround = false;
+        }
+        if (e.key === "Shift" && justin.dashCooldown === 0 && justin.dashTime === 0) {
+          justin.dashTime = 10;
+        }
+      }
+    });
+
+    document.addEventListener('keyup', function(e) {
+      if (gameState !== "shop") keys[e.key] = false;
+    });
+
+    function checkCollision(rect1, rect2) {
+      return (
+        rect1.x < rect2.x + rect2.width &&
+        rect1.x + rect1.width > rect2.x &&
+        rect1.y < rect2.y + rect2.height &&
+        rect1.y + rect1.height > rect2.y
+      );
+    }
+
+    function checkCoinCollision(coin, player) {
+      const dx = coin.x - (player.x + player.width / 2);
+      const dy = coin.y - (player.y + player.height / 2);
+      return Math.sqrt(dx * dx + dy * dy) < coin.radius + Math.min(player.width, player.height) / 4;
+    }
+
+    function checkPowerUpCollision(pu, player) {
+      return (
+        player.x < pu.x + pu.width &&
+        player.x + player.width > pu.x &&
+        player.y < pu.y + pu.height &&
+        player.y + player.height > pu.y
+      );
+    }
+
+    function drawWeather(currentPlanet) {
+      const numDrops = 30;
+      for (let i = 0; i < numDrops; i++) {
+        let x = Math.random() * canvas.width;
+        let y = Math.random() * canvas.height;
+        let length = Math.random() * 15 + 5;
+        if (currentPlanet.name === "Sun") {
+          ctx.strokeStyle = "rgba(255, 69, 0, 0.5)";
+        } else if (["Venus", "Earth", "Mars"].includes(currentPlanet.name)) {
+          ctx.strokeStyle = "rgba(173, 216, 230, 0.5)";
+        } else {
+          continue;
+        }
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y + length);
+        ctx.stroke();
+      }
+    }
+
+    function update() {
+      if (gameState === "playing") {
+        let currentPlanet;
+        if (persistentScore >= 666) {
+          currentPlanet = blackHole;
+        } else {
+          let planetIndex = Math.floor(persistentScore / 60);
+          if (planetIndex >= planets.length) planetIndex = planets.length - 1;
+          currentPlanet = planets[planetIndex];
+        }
+        justin.gravity = currentPlanet.gravity;
+        let baseEnemySpeed = currentPlanet.enemy.speed * 1.1; // Increase base speed by 10%
+        enemy.height = currentPlanet.enemy.height;
+        enemy.color = currentPlanet.enemy.color;
+        if (testingMode) { baseEnemySpeed = 30; }
+        if (enemyBoostTime > 0) {
+          enemy.speed = baseEnemySpeed * 3;
+          enemyBoostTime--;
+        } else {
+          enemy.speed = baseEnemySpeed;
+        }
+
+        // Decrease invincibility timer
+        if (justin.immortalityTime > 0) {
+          justin.immortalityTime--;
+        }
+
+        justin.speed = justin.baseSpeed;
+        let horizontalSpeed = justin.speed;
+        if (justin.dashTime > 0) {
+          horizontalSpeed *= 2;
+          justin.dashTime--;
+          if (justin.dashTime === 0) justin.dashCooldown = 50;
+        }
+        if (justin.dashCooldown > 0) justin.dashCooldown--;
+
+        if (keys['ArrowRight'] || keys['d']) { justin.x += horizontalSpeed; }
+        if (keys['ArrowLeft'] || keys['a']) { justin.x -= horizontalSpeed; }
+        if (justin.x < 0) justin.x = 0;
+        if (justin.x + justin.width > canvas.width) { justin.x = canvas.width - justin.width; }
+        if (justin.y < 0) justin.y = 0;
+
+        justin.y += justin.dy;
+        justin.dy += justin.gravity;
+        if (justin.y + justin.height > canvas.height) {
+          justin.y = canvas.height - justin.height;
+          justin.dy = 0;
+          justin.onGround = true;
+        }
+
+        if (justin.invulTimer > 0) justin.invulTimer--;
+
+        enemy.x -= enemy.speed;
+        if (enemy.x + enemy.width < 0) {
+          enemy.x = canvas.width;
+          score++;
+          persistentScore++;
+        }
+
+        // Collision with enemy (using hasHit flag)
+        if (checkCollision(justin, enemy) && justin.invulTimer === 0 && justin.immortalityTime <= 0) {
+          if (!enemy.hasHit) {
+            const damage = Math.max(20 - justin.damageReduction, 0);
+            justin.health -= damage;
+            justin.invulTimer = 60;
+            collisionEffectTimer = 30;
+            enemy.hasHit = true;
+            console.log("Collision! Health: " + justin.health);
+            if (justin.health <= 0) gameState = "gameover";
+          }
+        } else {
+          enemy.hasHit = false;
+        }
+
+        if (checkCoinCollision(coin, justin)) {
+          score += 5;
+          persistentScore += 5;
+          coin.x = Math.random() * (canvas.width - 20) + 10;
+          coin.y = Math.random() * (canvas.height - 100) + 10;
+          console.log("Coin collected!");
+        }
+
+        if (!powerUp) {
+          powerUpTimer--;
+          if (powerUpTimer <= 0) {
+            powerUp = {
+              x: Math.random() * (canvas.width - 30) + 15,
+              y: Math.random() * (canvas.height / 3) + (canvas.height * 2/3 - 50),
+              width: 20,
+              height: 20,
+              duration: 600
+            };
+            powerUpTimer = Math.floor(Math.random() * 700) + 800;
+          }
+        } else {
+          powerUp.duration--;
+          if (powerUp.duration <= 0) {
+            powerUp = null;
+          }
+          if (checkPowerUpCollision(powerUp, justin)) {
+            justin.immortalityTime = 300;
+            enemyBoostTime = 282;
+            console.log("Power-Up collected: Invincible & Enemies 3x faster for 5 sec!");
+            powerUp = null;
+          }
+        }
+
+        if (level >= 5) {
+          flyingObstacleTimer--;
+          if (flyingObstacleTimer <= 0) {
+            flyingObstacles.push(spawnFlyingObstacle(currentPlanet));
+            flyingObstacleTimer = Math.floor(Math.random() * 300) + 300;
+          }
+        }
+        for (let i = flyingObstacles.length - 1; i >= 0; i--) {
+          let obs = flyingObstacles[i];
+          obs.x -= obs.speed;
+          if (obs.x + obs.width < 0) {
+            flyingObstacles.splice(i, 1);
+            continue;
+          }
+          if (checkCollision(justin, obs) && justin.invulTimer === 0 && justin.immortalityTime <= 0) {
+            if (!obs.hasHit) {
+              const damage = Math.max(20 - justin.damageReduction, 0);
+              justin.health -= damage;
+              justin.invulTimer = 60;
+              collisionEffectTimer = 30;
+              obs.hasHit = true;
+              console.log("Collision with flying obstacle! Health: " + justin.health);
+              if (justin.health <= 0) gameState = "gameover";
+            }
+          } else {
+            obs.hasHit = false;
+          }
+        }
+
+        let shopInterval = (level <= 10 ? 20 : 30);
+        if (persistentScore >= level * shopInterval) {
+          gameState = "shop";
+        }
+      }
+    }
+
+    function draw() {
+      let currentPlanet;
+      if (persistentScore >= 666) {
+        currentPlanet = blackHole;
+      } else {
+        let planetIndex = Math.floor(persistentScore / 60);
+        if (planetIndex >= planets.length) planetIndex = planets.length - 1;
+        currentPlanet = planets[planetIndex];
+      }
+      const dynamicTextColor = getContrastColor(currentPlanet.background);
+
+      ctx.fillStyle = currentPlanet.background;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      drawWeather(currentPlanet);
+
+      ctx.fillStyle = dynamicTextColor;
+      ctx.font = "20px Arial";
+      ctx.fillText("Planet: " + currentPlanet.name, canvas.width / 2 - 100, 30);
+
+      ctx.fillStyle = "red";
+      ctx.fillRect(justin.x, justin.y, justin.width, justin.height);
+
+      ctx.fillStyle = enemy.color;
+      ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+
+      ctx.beginPath();
+      ctx.arc(coin.x, coin.y, coin.radius, 0, Math.PI * 2);
+      ctx.fillStyle = "yellow";
+      ctx.fill();
+      ctx.closePath();
+
+      if (powerUp) {
+        ctx.fillStyle = "lime";
+        ctx.fillRect(powerUp.x, powerUp.y, powerUp.width, powerUp.height);
+      }
+
+      for (let obs of flyingObstacles) {
+        ctx.fillStyle = "purple";
+        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+      }
+
+      ctx.fillStyle = "#FFD700";
+      ctx.font = "24px Arial";
+      ctx.fillText("Score: " + score, 10, 30);
+      ctx.fillText("Highscore: " + persistentScore, canvas.width - 200, 30);
+      ctx.fillText("Level: " + level, 10, 60);
+      ctx.fillText("Health: " + justin.health, 10, 90);
+
+      ctx.fillStyle = dynamicTextColor;
+      ctx.font = "18px Arial";
+      if (justin.immortalityTime > 0) ctx.fillText("Invincible!", 10, 120);
+      if (justin.damageReduction > 0) ctx.fillText("Shield: Big Boy Active", 10, 140);
+
+      if (collisionEffectTimer > 0) {
+        ctx.fillStyle = "rgba(255, 0, 0, 0.3)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        collisionEffectTimer--;
+      }
+
+      if (gameState === "shop") {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = dynamicTextColor;
+        ctx.font = "28px Arial";
+        ctx.fillText("Level " + level + " completed!", canvas.width / 2 - 150, canvas.height / 2 - 100);
+        ctx.font = "24px Arial";
+        ctx.fillText("Shop:", canvas.width / 2 - 50, canvas.height / 2 - 60);
+        ctx.fillText("1: Stronger Jump (15 pts, +3%)", canvas.width / 2 - 150, canvas.height / 2 - 20);
+        ctx.fillText("2: More Endurance (20 pts)", canvas.width / 2 - 150, canvas.height / 2 + 20);
+        ctx.fillText("3: Slow Enemies (25 pts)", canvas.width / 2 - 150, canvas.height / 2 + 60);
+        ctx.fillText("4: Extra Health (25 pts, +20 HP)", canvas.width / 2 - 150, canvas.height / 2 + 100);
+        ctx.fillText("5: Big Boy (100 pts, Shield: -10 dmg)", canvas.width / 2 - 150, canvas.height / 2 + 140);
+        ctx.fillText("Planet: " + currentPlanet.name, canvas.width / 2 - 150, canvas.height / 2 + 180);
+        ctx.fillText("Press 'C' to continue.", canvas.width / 2 - 150, canvas.height / 2 + 220);
+      }
+
+      if (gameState === "gameover") {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "white";
+        ctx.font = "36px Arial";
+        ctx.fillText("Game Over", canvas.width / 2 - 100, canvas.height / 2 - 40);
+        ctx.font = "24px Arial";
+        ctx.fillText("Press 'R' to restart", canvas.width / 2 - 130, canvas.height / 2);
+      }
+    }
+
+    function restartGame() {
+      score = 0;
+      persistentScore = 0;
+      level = 1;
+      gameState = "playing";
+      justin.health = justin.maxHealth;
+      justin.x = 100;
+      justin.y = 500;
+      justin.dy = 0;
+      justin.invulTimer = 0;
+      justin.dashTime = 0;
+      justin.dashCooldown = 0;
+      justin.immortalityTime = 0;
+      justin.baseSpeed = 5;
+      justin.speed = 5;
+      justin.damageReduction = 0;
+      enemy.x = canvas.width;
+      enemy.speed = 3;
+      enemy.hasHit = false;
+      collisionEffectTimer = 0;
+      flyingObstacles = [];
+      flyingObstacleTimer = 300;
+      coin.x = Math.random() * (canvas.width - 20) + 10;
+      coin.y = Math.random() * (canvas.height - 100) + 10;
+      powerUp = null;
+      powerUpTimer = Math.floor(Math.random() * 700) + 800;
+      enemyBoostTime = 0;
+      console.log("Game restarted");
+    }
+
+    function gameLoop() {
+      update();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    gameLoop();
+  </script>
+</body>
+</html>
