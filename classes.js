@@ -14,7 +14,6 @@ export class Entity {
   color; baseSpeed; width; height; speed; posX; posY; posZ;
   hasHit;
 
-  /** @type {Game.Entity['constructor']} */
   constructor({
     color, baseSpeed, width, height,
     posX, posY, posZ
@@ -52,7 +51,6 @@ export class Player extends Entity {
   jumpStrength; gravity; maxHealth; health;
   immortalityTime; damageReduction; invulTimer; dashTime; dashCooldown;
 
-  /** @type {Game.Player['constructor']} */
   constructor({ jumpStrength, gravity, maxHealth, ...entityArgs }) {
     super(entityArgs);
 
@@ -90,18 +88,38 @@ export class Player extends Entity {
 }
 
 export class Collectible {
-  name; radius; posX; posY;
+  posX; posY;
 
-  /** @type {Game.Collectible['constructor']} */
-  constructor(name, radius, posX, posY) {
-    this.name = name;
-    this.radius = radius;
+  constructor({ posX, posY }) {
     this.posX = posX;
     this.posY = posY;
   }
 }
 
-/** @type {typeof Game.GameState} */
+export class Coin extends Collectible {
+  radius;
+
+  constructor({ radius, ...collectibleArgs }) {
+    super(collectibleArgs);
+
+    this.radius = radius;
+  }
+}
+
+/** Power-up: When picked up, grants invincibility for 300 frames and enemy boost for 282 frames. */
+export class PowerUp extends Collectible {
+  width; height; duration; timer;
+
+  constructor({ width, height, duration, timer, ...collectibleArgs }) {
+    super(...collectibleArgs);
+
+    this.width = width;
+    this.height = height;
+    this.duration = duration;
+    this.timer = timer;
+  }
+}
+
 export const GameState = Object.freeze(Object.fromEntries(
   ['playing', 'shop', 'gameOver'].map(e => [e, Symbol(e)])
 ));

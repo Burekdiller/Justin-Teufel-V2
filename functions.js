@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-magic-numbers, unicorn/no-null */
 
-import { Entity, Collectible, GameState } from './classes';
+import { Entity, GameState, Coin, PowerUp } from './classes';
 
 /** Same result as random(), but secure. */
 export const random = () => globalThis.crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
@@ -42,11 +42,18 @@ export function spawnFlyingObstacle(currentArea) {
 }
 
 /** @type {Game['spawnCoin']} */
-export const spawnCoin = () => new Collectible(
-  'coin', 10,
-  random() * (canvas.width - 20) + 10,
-  random() * (canvas.height - 100) + 10
-);
+export const spawnCoin = () => new Coin({
+  posX: random() * (canvas.width - 20) + 10,
+  posY: random() * (canvas.height - 100) + 10,
+  radius: 10
+});
+
+export const spawnPowerUp = () => new PowerUp({
+  posX: random() * (canvas.width - 30) + 15,
+  posY: random() * (canvas.height / 3) + (canvas.height * 2 / 3 - 50),
+  width: 20, height: 20, duration: 600,
+  timer: Math.floor(random() * 700) + 800 // 800 to 1500 frames
+});
 
 /** @type {Game['checkCollision']} */
 export function checkCollision(rect1, rect2) {

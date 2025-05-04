@@ -1,24 +1,23 @@
-/* eslint-disable @typescript-eslint/no-magic-numbers, unicorn/no-null */
+/* eslint-disable @typescript-eslint/no-magic-numbers */
+
 import { Entity, Player, GameState } from './classes';
 import {
-  random, getContrastColor, getCurrentArea, spawnFlyingObstacle, spawnCoin,
+  random, getContrastColor, getCurrentArea,
+  spawnFlyingObstacle, spawnCoin, spawnPowerUp,
   checkCollision, checkCoinCollision, drawWeather, restartGame
 } from './functions';
 
-const collisionEffectTimer = 0;
+let collisionEffectTimer = 0;
 
 let coin = spawnCoin();
+let powerUp = spawnPowerUp();
 
-// Power-up: When picked up, grants invincibility for 300 frames and enemy boost for 282 frames.
-let powerUp = null;
-let powerUpTimer = Math.floor(random() * 700) + 800; // 800 to 1500 frames
 let enemyBoostTime = 0;
 
 // Array for flying obstacles
 const flyingObstacles = [];
 let flyingObstacleTimer = 300;
 
-/** @type {Game.Player} */
 const justin = new Player({
   color: 'red',
   baseSpeed: 5,
@@ -33,9 +32,7 @@ const justin = new Player({
   maxHealth: 100
 });
 
-/**
- * @type {Game.Entity}
- * "Kacke" */
+/** "Kacke" */
 const enemy = new Entity({
   color: 'brown',
   baseSpeed: 3,
@@ -223,36 +220,24 @@ function update() {
     score += 5;
     persistentScore += 5;
 
-    // TODO: remove old coin
     coin = spawnCoin();
     console.debug('Coin collected!');
   }
 
-  if (powerUp) {
+  if (powerUp.duration > 0) {
     powerUp.duration--;
-    if (powerUp.duration > 0 && checkCollision(powerUp, justin)) {
+
+    if (checkCollision(powerUp, justin)) {
       justin.immortalityTime = 300;
       enemyBoostTime = 282;
 
       console.debug('Power-Up collected: Invincible & Enemies 3x faster for 5 sec!');
     }
-
-    powerUp = null;
   }
   else {
-    powerUpTimer--;
+    powerUp.timer--;
 
-    // TODO: Class
-    if (powerUpTimer <= 0) {
-      powerUp = {
-        x: random() * (canvas.width - 30) + 15,
-        y: random() * (canvas.height / 3) + (canvas.height * 2 / 3 - 50),
-        width: 20,
-        height: 20,
-        duration: 600
-      };
-      powerUpTimer = Math.floor(random() * 700) + 800;
-    }
+    if (powerUp.timer <= 0) powerUp = spawnPowerUp();
   }
 
   if (level >= 5) {
@@ -292,7 +277,6 @@ function update() {
 }
 
 function draw() {
-  /** @type {Area} */
   const currentArea = getCurrentArea();
   const dynamicTextColor = getContrastColor(currentArea.background);
 
@@ -318,7 +302,7 @@ function draw() {
   ctx.fill();
   ctx.closePath();
 
-  if (powerUp) {
+  if (powerUp.timer === 0) {
     ctx.fillStyle = 'lime';
     ctx.fillRect(powerUp.posX, powerUp.posY, powerUp.width, powerUp.height);
   }
