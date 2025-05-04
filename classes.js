@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-magic-numbers */
 export class Area {
   name; background; gravity; enemy;
 
@@ -35,8 +36,9 @@ export class Entity {
     this.speed = this.baseSpeed;
 
     this.posX = canvas.width;
-    // this.posY = 0;
-    // this.posZ = 0;
+
+    /* this.posY = 0;
+       this.posZ = 0; */
 
     this.hasHit = false;
   }
@@ -51,9 +53,7 @@ export class Player extends Entity {
   immortalityTime; damageReduction; invulTimer; dashTime; dashCooldown;
 
   /** @type {Game.Player['constructor']} */
-  constructor({
-    jumpStrength, gravity, maxHealth, ...entityArgs
-  }) {
+  constructor({ jumpStrength, gravity, maxHealth, ...entityArgs }) {
     super(entityArgs);
 
     this.jumpStrength = jumpStrength;
@@ -68,11 +68,16 @@ export class Player extends Entity {
     this.health = maxHealth;
   }
 
+  resetPosition() {
+    this.posX = 100;
+    this.posY = 500;
+    this.posZ = 0;
+  }
+
   reset() {
     super.reset();
 
-    this.posX = 100;
-    this.posZ = 500;
+    this.resetPosition();
 
     this.health = this.maxHealth; // TODO: Does this allow keeping max HP over games?
 
@@ -97,7 +102,6 @@ export class Collectible {
 }
 
 /** @type {typeof Game.GameState} */
-export const GameState = Object.freeze(
-  ['playing', 'shop', 'gameOver']
-    .reduce((acc, e) => ({ ...acc, [e]: Symbol(e) }), {})
-);
+export const GameState = Object.freeze(Object.fromEntries(
+  ['playing', 'shop', 'gameOver'].map(e => [e, Symbol(e)])
+));

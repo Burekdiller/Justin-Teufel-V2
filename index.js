@@ -101,15 +101,13 @@ document.addEventListener('keydown', e => {
 
         case 'c':
           // Clear key states upon shop exit.
-          for (const k in keys) keys[k] = false;
+          for (const key of Object.keys(keys)) keys[key] = false;
 
           level++;
           gameState = GameState.playing;
 
           // Reset Justin's position.
-          justin.posX = 100;
-          justin.posY = 500;
-          justin.posZ = 0;
+          justin.resetPosition();
 
           console.debug('Continuing to level ' + level);
           break;
