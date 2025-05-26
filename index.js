@@ -122,8 +122,7 @@ document.addEventListener('keydown', e => {
         case ' ':
         case 'w':
         case 'arrowup':
-          if (justin.isOnGround()) justin.dy = justin.jumpStrength;
-          break;
+          justin.jump();
 
         case 'shift':
           if (justin.dashCooldown === 0 && justin.dashTime === 0)
@@ -178,7 +177,6 @@ function update() {
 
   if (justin.posX + justin.width > canvas.width)
     justin.posX = canvas.width - justin.width;
-
 
   justin.posY += justin.dy;
   justin.dy += justin.gravity;

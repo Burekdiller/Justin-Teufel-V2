@@ -16,7 +16,7 @@ export class Area {
 }
 
 export class Entity {
-  color; baseSpeed; width; height; speed; posX; posY; posZ;
+  color; baseSpeed; gravity; width; height; speed; posX; posY; posZ;
   hasHit;
 
   /** @param {import('./types/classes').EntityOptions} options */
@@ -31,7 +31,8 @@ export class Entity {
     this.posX = posX;
     this.posY = posY;
     this.posZ = posZ;
-    this.dy = 0;
+    this.gravity = 0;
+    this.dy = this.gravity;
 
     this.speed = baseSpeed;
     this.hasHit = false;
@@ -49,7 +50,11 @@ export class Entity {
   }
 
   isOnGround() {
-    return this.dy === 0;
+    return this.dy === 0 || this.dy == this.gravity;
+  }
+
+  jump() {
+    if (this.isOnGround()) this.dy += this.jumpStrength;
   }
 }
 
