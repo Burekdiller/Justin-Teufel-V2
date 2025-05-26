@@ -261,7 +261,7 @@ function update(deltaTime) {
     gameState = GameState.shop;
 }
 
-function draw() {
+function draw(deltaTime) {
   const currentArea = getCurrentArea();
   const dynamicTextColor = getContrastColor(currentArea.background);
 
@@ -300,10 +300,12 @@ function draw() {
 
   ctx.fillStyle = '#FFD700';
   ctx.font = '24px Arial';
-  ctx.fillText('Score: ' + score, 10, 30);
-  ctx.fillText('Highscore: ' + persistentScore, canvas.width - 200, 30);
-  ctx.fillText('Level: ' + level, 10, 60);
-  ctx.fillText('Health: ' + justin.health, 10, 90);
+  ctx.fillText(`Score: ${score}`, 10, 30);
+  ctx.fillText(`Level: ${level}`, 10, 60);
+  ctx.fillText(`Health: ${justin.health}`, 10, 90);
+
+  ctx.fillText(`Highscore: ${persistentScore}`, canvas.width - 200, 60);
+  ctx.fillText(`FPS: ${Math.round(1000 / deltaTime)}`, canvas.width - 200, 30);
 
   ctx.fillStyle = dynamicTextColor;
   ctx.font = '18px Arial';
@@ -349,7 +351,7 @@ function gameLoop(currentTime) {
   lastTime = currentTime;
 
   update(deltaTime);
-  draw();
+  draw(deltaTime);
 
   requestAnimationFrame(gameLoop);
 }
