@@ -1,11 +1,14 @@
 /* eslint-disable @typescript-eslint/no-magic-numbers */
 
-import { Entity, Player, GameState } from './classes';
+import './globals.js'
+
+import { Entity, Player, GameState } from './classes.js';
 import {
   random, getContrastColor, getCurrentArea,
   spawnFlyingObstacle, spawnCoin, spawnPowerUp,
   checkCollision, checkCoinCollision, drawWeather, restartGame
-} from './functions';
+} from './functions.js';
+
 
 let collisionEffectTimer = 0;
 

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-magic-numbers */
 
-import { Area, Entity, GameState } from './classes';
+import { Area, Entity, GameState } from './classes.js';
 
 /** @type {canvas} */
 globalThis.canvas = document.querySelector('#gameCanvas');

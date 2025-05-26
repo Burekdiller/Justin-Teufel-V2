@@ -121,7 +121,7 @@ export class PowerUp extends Collectible {
 
   /** @param {{width: number, height: number, duration: number, timer: number} & import('./types/classes').CollectibleOptions}options */
   constructor({ width, height, duration, timer, ...collectibleArgs }) {
-    super(...collectibleArgs);
+    super(collectibleArgs);
 
     this.width = width;
     this.height = height;

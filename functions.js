@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-magic-numbers, unicorn/no-null */
 
-import { Entity, GameState, Coin, PowerUp } from './classes';
+import { Entity, GameState, Coin, PowerUp } from './classes.js';
 
 /** Same result as random(), but secure. */
 export const random = () => globalThis.crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
