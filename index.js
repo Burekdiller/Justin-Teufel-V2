@@ -145,17 +145,16 @@ function update(deltaTime) {
   if (collisionEffectTimer > 0) collisionEffectTimer -= deltaTime
 
   justin.speed = justin.baseSpeed;
-  let horizontalSpeed = justin.speed;
 
   if (justin.dashTime > 0) {
-    horizontalSpeed *= 2;
+    justin.speed *= 2;
     justin.dashTime -= deltaTime;
     if (justin.dashTime <= 0) justin.dashCooldown = 5000;
   }
 
   if (justin.dashCooldown > 0) justin.dashCooldown -= deltaTime;
 
-  const movement = horizontalSpeed * (deltaTime / 1000); // Pixel per second -> ms
+  const movement = justin.speed * (deltaTime / 1000); // Pixel per second -> ms
 
   if (keys.ArrowRight || keys.d)
     justin.posX += movement;
@@ -289,7 +288,7 @@ function draw(deltaTime) {
   ctx.fill();
   ctx.closePath();
 
-  if (powerUp.timer === 0) {
+  if (powerUp.timer <= 0) {
     ctx.fillStyle = 'lime';
     ctx.fillRect(powerUp.posX, powerUp.posY, powerUp.width, powerUp.height);
   }
