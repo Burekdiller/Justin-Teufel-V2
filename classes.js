@@ -17,12 +17,12 @@ export class Area {
 
 export class Entity {
   color; baseSpeed; gravity; width; height; speed; posX; posY; posZ;
-  hasHit;
+  startPosX; startPosY; startPosZ; hasHit;
 
   /** @param {import('./types/classes').EntityOptions} options */
   constructor({
-    color, baseSpeed, width, height,
-    posX, posY, posZ
+    color, baseSpeed, width = 50, height = 45,
+    posX = canvas.width, posY = canvas.height - height * 2, posZ = 0
   }) {
     this.color = color;
     this.baseSpeed = baseSpeed;
@@ -36,15 +36,18 @@ export class Entity {
 
     this.speed = baseSpeed;
     this.hasHit = false;
+
+    this.startPosX = posX;
+    this.startPosY = posY;
+    this.startPosZ = posZ
   }
 
   reset() {
     this.speed = this.baseSpeed;
 
-    this.posX = canvas.width;
-
-    /* this.posY = 0;
-       this.posZ = 0; */
+    this.posX = this.startPosX;
+    this.posY = this.startPosY;
+    this.posZ = this.startPosZ;
 
     this.hasHit = false;
   }
@@ -78,16 +81,8 @@ export class Player extends Entity {
     this.health = maxHealth;
   }
 
-  resetPosition() {
-    this.posX = 100;
-    this.posY = 500;
-    this.posZ = 0;
-  }
-
   reset() {
     super.reset();
-
-    this.resetPosition();
 
     this.health = this.maxHealth; // TODO: Does this allow keeping max HP over games?
 

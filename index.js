@@ -23,27 +23,15 @@ let flyingObstacleTimer = 300;
 
 const justin = new Player({
   color: 'red',
-  baseSpeed: 5,
+  baseSpeed: 300,
   width: 50,
   height: 70,
   posX: 100,
   posY: 500,
   posZ: 0,
 
-  jumpStrength: -12,
-  gravity: 0.5, // set dynamically
+  jumpStrength: -800,
   maxHealth: 100
-});
-
-/** "Kacke" */
-const enemy = new Entity({
-  color: 'brown',
-  baseSpeed: 3,
-  width: 50,
-  height: 45,
-  posX: canvas.width,
-  posY: 550,
-  posZ: 0
 });
 
 const keys = {};
@@ -82,7 +70,7 @@ document.addEventListener('keydown', e => {
           break;
 
         case '3':
-          enemy.speed *= 0.95;
+          currentArea.enemy.speed *= 0.95;
 
           console.debug('Enemies slowed!');
           break;
@@ -127,7 +115,6 @@ document.addEventListener('keydown', e => {
         case 'shift':
           if (justin.dashCooldown === 0 && justin.dashTime === 0)
             justin.dashTime = 10;
-          break;
       }
   }
 });
@@ -137,49 +124,50 @@ document.addEventListener('keyup', e => {
 });
 
 // Start game loop after the page finished loading
-document.addEventListener('DOMContentLoaded', () => gameLoop());
+document.addEventListener('DOMContentLoaded', () => requestAnimationFrame(gameLoop));
 
-function update() {
+function update(deltaTime) {
   if (gameState !== GameState.playing) return;
 
   const currentArea = getCurrentArea();
 
   justin.gravity = currentArea.gravity;
 
-  enemy.height = currentArea.enemy.height;
-  enemy.color = currentArea.enemy.color;
-
   // Increase base speed by 10%
-  const baseEnemySpeed = testingMode ? 30 : currentArea.enemy.speed * 1.1;
+  const baseEnemySpeed = testingMode ? 30 : currentArea.enemy.baseSpeed * 1.1;
   if (enemyBoostTime > 0) {
-    enemy.speed = baseEnemySpeed * 3;
-    enemyBoostTime--;
+    currentArea.enemy.speed = baseEnemySpeed * 3;
+    enemyBoostTime -= deltaTime;
   }
-  else enemy.speed = baseEnemySpeed;
+  else currentArea.enemy.speed = baseEnemySpeed;
 
-  // Decrease invincibility timer
-  if (justin.immortalityTime > 0) justin.immortalityTime--;
+  if (justin.immortalityTime > 0) justin.immortalityTime -= deltaTime;
+  if (collisionEffectTimer > 0) collisionEffectTimer -= deltaTime
 
   justin.speed = justin.baseSpeed;
   let horizontalSpeed = justin.speed;
 
   if (justin.dashTime > 0) {
     horizontalSpeed *= 2;
-    justin.dashTime--;
-    if (justin.dashTime === 0) justin.dashCooldown = 50;
+    justin.dashTime -= deltaTime;
+    if (justin.dashTime <= 0) justin.dashCooldown = 5000;
   }
-  if (justin.dashCooldown > 0) justin.dashCooldown--;
+
+  if (justin.dashCooldown > 0) justin.dashCooldown -= deltaTime;
+
+  const movement = horizontalSpeed * (deltaTime / 1000); // Pixel per second -> ms
 
   if (keys.ArrowRight || keys.d)
-    justin.posX += horizontalSpeed;
+    justin.posX += movement;
   if (keys.ArrowLeft || keys.a)
-    justin.posX = Math.max(justin.posX - horizontalSpeed, 0);
+    justin.posX = Math.max(justin.posX - movement, 0);
 
   if (justin.posX + justin.width > canvas.width)
     justin.posX = canvas.width - justin.width;
 
-  justin.posY += justin.dy;
-  justin.dy += justin.gravity;
+  justin.posY += justin.dy * (deltaTime / 1000);
+  justin.dy += justin.gravity * (deltaTime / 1000);
+
   if (justin.posY + justin.height > canvas.height) {
     justin.posY = canvas.height - justin.height;
     justin.dy = 0;
@@ -187,31 +175,29 @@ function update() {
 
   if (justin.posY < 0) justin.posY = 0;
 
+  if (justin.invulTimer > 0) justin.invulTimer -= deltaTime;
 
-  if (justin.invulTimer > 0) justin.invulTimer--;
+  currentArea.enemy.posX -= currentArea.enemy.speed * (deltaTime / 1000);
 
-  enemy.posX -= enemy.speed;
-  if (enemy.posX + enemy.width < 0) {
-    enemy.posX = canvas.width; // TODO: is this actually just setting dead enemies outside the canvas? lol
-
+  if (currentArea.enemy.posX + currentArea.enemy.width < 0) {
     score++;
     persistentScore++;
+
+    currentArea.enemy.reset()
   }
 
-  // Collision with enemy (using hasHit flag)
-  if (checkCollision(justin, enemy) && justin.invulTimer === 0 && justin.immortalityTime <= 0) {
-    if (enemy.hasHit) {
-      enemy.hasHit = false;
+  if (checkCollision(justin, currentArea.enemy) && justin.invulTimer <= 0 && justin.immortalityTime <= 0) {
+    if (currentArea.enemy.hasHit) {
+      currentArea.enemy.hasHit = false;
       return;
     }
 
-    enemy.hasHit = true;
+    currentArea.enemy.hasHit = true;
 
     const damage = Math.max(20 - justin.damageReduction, 0);
     justin.health -= damage;
-
-    justin.invulTimer = 60;
-    collisionEffectTimer = 30;
+    justin.invulTimer = 1000;
+    collisionEffectTimer = 500;
 
     if (justin.health <= 0) gameState = GameState.gameOver;
     console.debug('Collision! Health: ' + justin.health);
@@ -226,43 +212,41 @@ function update() {
   }
 
   if (powerUp.duration > 0) {
-    powerUp.duration--;
+    powerUp.duration -= deltaTime;
 
     if (checkCollision(powerUp, justin)) {
-      justin.immortalityTime = 300;
-      enemyBoostTime = 282;
-
-      console.debug('Power-Up collected: Invincible & Enemies 3x faster for 5 sec!');
+      justin.immortalityTime = 5000;
+      enemyBoostTime = 4700;
+      console.debug('Power-Up collected!');
     }
   }
   else {
-    powerUp.timer--;
-
+    powerUp.timer -= deltaTime;
     if (powerUp.timer <= 0) powerUp = spawnPowerUp();
   }
 
   if (level >= 5) {
-    flyingObstacleTimer--;
+    flyingObstacleTimer -= deltaTime;
     if (flyingObstacleTimer <= 0) {
       flyingObstacles.push(spawnFlyingObstacle(currentArea));
-      flyingObstacleTimer = Math.floor(random() * 300) + 300;
+      flyingObstacleTimer = Math.floor(random() * 3000) + 3000;
     }
 
     for (let i = flyingObstacles.length - 1; i >= 0; i--) {
       const obs = flyingObstacles[i];
-      obs.posX -= obs.speed;
+      obs.posX -= obs.speed * (deltaTime / 1000);
 
       if (obs.posX + obs.width < 0) {
         flyingObstacles.splice(i, 1);
         continue;
       }
 
-      if (checkCollision(justin, obs) && justin.invulTimer === 0 && justin.immortalityTime <= 0) {
+      if (checkCollision(justin, obs) && justin.invulTimer <= 0 && justin.immortalityTime <= 0) {
         if (!obs.hasHit) {
           const damage = Math.max(20 - justin.damageReduction, 0);
           justin.health -= damage;
-          justin.invulTimer = 60;
-          collisionEffectTimer = 30;
+          justin.invulTimer = 1000;
+          collisionEffectTimer = 500;
           obs.hasHit = true;
           console.log('Collision with flying obstacle! Health: ' + justin.health);
           if (justin.health <= 0) gameState = 'gameover';
@@ -294,8 +278,9 @@ function draw() {
   ctx.fillStyle = justin.color;
   ctx.fillRect(justin.posX, justin.posY, justin.width, justin.height);
 
-  ctx.fillStyle = enemy.color;
-  ctx.fillRect(enemy.posX, enemy.posY, enemy.width, enemy.height);
+  ctx.fillStyle = currentArea.enemy.color;
+  ctx.fillStyle = 'red';
+  ctx.fillRect(currentArea.enemy.posX, currentArea.enemy.posY, currentArea.enemy.width, currentArea.enemy.height);
 
   ctx.beginPath();
   ctx.arc(coin.posX, coin.posY, coin.radius, 0, Math.PI * 2);
@@ -328,7 +313,6 @@ function draw() {
   if (collisionEffectTimer > 0) {
     ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    collisionEffectTimer--;
   }
 
   if (gameState === GameState.shop) {
@@ -359,8 +343,13 @@ function draw() {
   }
 }
 
-function gameLoop() {
-  update();
+let lastTime = performance.now();
+function gameLoop(currentTime) {
+  const deltaTime = Math.min(currentTime - lastTime, 100) // max 100ms
+  lastTime = currentTime;
+
+  update(deltaTime);
   draw();
-  requestAnimationFrame(gameLoop); // TODO: consistent speed across different screen refresh rates
+
+  requestAnimationFrame(gameLoop);
 }
